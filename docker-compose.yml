@@ -1,0 +1,64 @@
+services:
+
+  db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: liveindex
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-localdev}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/db/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d liveindex"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    restart: on-failure
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-localdev}@db:5432/liveindex
+      CENSUS_API_KEY: ${CENSUS_API_KEY}
+      RENTCAST_API_KEY: ${RENTCAST_API_KEY}
+      BLS_API_KEY: ${BLS_API_KEY:-}
+      APP_ENV: development
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:3001}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/app:/app
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-localdev}@db:5432/liveindex
+      CENSUS_API_KEY: ${CENSUS_API_KEY}
+      RENTCAST_API_KEY: ${RENTCAST_API_KEY}
+      BLS_API_KEY: ${BLS_API_KEY:-}
+      APP_ENV: development
+      PIPELINE_ALERT_URL: ${PIPELINE_ALERT_URL:-}
+    volumes:
+      - ./backend/app:/app
+    command: python scheduler.py
+
+volumes:
+  postgres_data:
