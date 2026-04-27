@@ -1,4 +1,4 @@
-GeoSpatial Analysis
+GeoSpacial Analysis
 
 Compare the real cost of living across US cities — not just rent, but income, purchasing power, walkability, and available properties.**
 
